@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  
+  <mapper namespace="admin.dao.face.AdminDao">
+  
+  	<select id="selectTotal" resultType="int">
+		SELECT count(*) FROM reportboard
+	</select>
+	
+	<select id="selectAllBlacklist" resultType="int">
+		SELECT count(*) FROM Blacklist
+	</select>
+	
+	<select id="selectAllMember" resultType="int">
+		SELECT count(*) FROM Member
+	</select>
+	
+	<select id="selectSearchMember" resultType="int" >
+		SELECT count(*) FROM Member WHERE username LIKE ('%${keyword}%')
+	</select>
+	
+	<select id="selectTotalSearch" resultType="int" parameterType="String">
+		SELECT count(*) FROM reportboard WHERE reportdetail LIKE ('%${search}%')
+	</select>
+	
+	<select id="selectTotalComment" resultType="int">
+		SELECT count(*) FROM reportcomment
+	</select>
+  
+	<select id="ReportBoardtselectAll" resultType="admin.dto.ReportBoard" parameterType="util.AdminPaging">
+		SELECT re.*
+		FROM (
+		    SELECT rownum rnum, B.*
+		    FROM (
+		        SELECT boreportno, reportdetail, report_date AS reportDate, complete, r.userNo, m.userid, r.boardno, b.boardtitle
+		        FROM reportboard r, board b, member m
+		        WHERE r.boardno = b.boardno
+		        AND b.userno = m.userno
+		        ORDER BY UPPER(complete) ASC, boreportno DESC
+		    ) B
+		) re
+		WHERE rnum BETWEEN #{startNo} AND #{endNo}
+	</select>
+	
+	
+	<select id="selectReportInfo" resultType="admin.dto.ReportBoard">
+	SELECT boreportno, reportdetail, report_date AS reportDate, complete, r.userNo, m.userid, r.boardno, b.boardtitle
+		FROM reportboard r, board b, member m
+        WHERE r.boardno = b.boardno
+        AND b.userno = m.userno
+        AND boreportno = #{boreportno}
+	</select>
+	
+	<select id="selectMember" resultType="member.dto.Member">
+	SELECT * FROM MEMBER WHERE USERNO = #{userNo}
+	</select>
+	
+	<select id="selectBoarduser" resultType="int">
+	SELECT userno FROM Board WHERE boardno = #{boardno}
+	</select>
+	
+	<select id="selectBoardDetail" resultType="board.dto.Board">
+	SELECT boardno, boardtitle, content, write_date AS writedate, userno, boardtypeno FROM BOARD WHERE boardno = #{boardno}
+	</select>
+	
+<!-- 	<delete id="DeleteReport"> -->
+<!-- 	DELETE FROM REPORTBOARD where boreportno = #{deleteNo} -->
+<!-- 	</delete> -->
+	
+
+	<select id="BlacklistselectAll" resultType="hashmap" parameterType="util.Paging">
+		SELECT *
+		FROM (
+		    SELECT rownum rnum, c.*
+		    FROM (
+		       SELECT b.blackno, b.blackdate, b.reason, b.userno, m.username
+		       FROM blacklist b
+		       INNER JOIN member m ON b.userno = m.userno
+		       ORDER BY b.blackno DESC
+		    ) c
+		) WHERE rnum BETWEEN #{startNo} AND #{endNo}
+	</select>
+
+	
+	<select id="selectObjectNo" resultType="int">
+		SELECT SEQ_SHOP.NEXTVAL FROM DUAL
+	</select>
+	
+	<insert id="insertObjectContent" parameterType="shop.dto.Shop">
+		INSERT INTO SHOP (objectno, name, price, remain, shopcontent) VALUES (#{objectno},#{name},#{price},#{remain},#{shopcontent})
+	</insert>
+	
+	<insert id="insertFile" parameterType="shop.dto.ShopFile">
+		INSERT INTO SHOPFILE (fileno, originname, storedname, filesize, objectno) VALUES (seq_shopfile.nextval, #{originname},#{storedname},#{filesize},#{objectno})
+	</insert>
+	
+	<select id="selectBoardNo" resultType="int">
+		SELECT boardno FROM reportboard WHERE boreportno = #{deleteNo}
+	</select>
+	
+	<update id="updateBoardtype" parameterType="int">
+		UPDATE BOARD SET BOARDTYPENO = 5 WHERE BOARDNO = #{boardno}
+	</update>
+	
+	<update id="updateReportComplete" parameterType="int">
+		UPDATE reportboard SET COMPLETE = 'Y' WHERE boreportno = #{deleteNo}
+	</update>
+	
+	
+	<delete id="deleteBlacklist" parameterType="java.util.List">
+		  DELETE FROM blacklist WHERE blackno IN
+		  <foreach collection="list" item="blackno" open="(" close=")" separator=",">
+		    #{blackno.blackno}
+		  </foreach>
+	</delete>
+
+	
+	<insert id="insertBlacklist">
+		INSERT INTO blacklist(blackno, blackdate, reason, userno)
+		VALUES(seq_blacklist.nextval,CURRENT_DATE,#{reason},#{userno})
+	</insert>
+
+	<select id="MemberselectAll" resultType="member.dto.Member" parameterType="util.Paging">
+			SELECT *
+		FROM (
+		    SELECT rownum rnum, A.*
+		    FROM (
+		        SELECT userno, username, userid, userpw, email,address, zipcode, phone, positionno
+		        FROM member
+		        ORDER BY userno DESC
+		    ) A
+		) 
+		WHERE rnum BETWEEN #{startNo} AND #{endNo}
+		
+	</select>
+	
+	
+	<select id="MemberselectByKeyword" resultType="member.dto.Member" parameterType="hashmap">
+			SELECT *
+		FROM (
+		    SELECT rownum rnum, A.*
+		    FROM (
+		        SELECT userno, username, userid, userpw, email,address, zipcode, phone, positionno
+		        FROM member
+		        where lower(username) LIKE lower('%${keyword}%')
+		        ORDER BY userno DESC
+		    ) A
+		) 
+		WHERE rnum BETWEEN #{paging.startNo} AND #{paging.endNo}
+		
+	</select>
+	
+	<select id="ReportCommentselectAll" resultType="admin.dto.ReportComment" parameterType="util.AdminPaging">
+		SELECT re.* FROM (SELECT rownum rnum, B.* FROM (
+		(SELECT coreportno, reportdetail, report_date AS reportDate, complete, c.userNo, m.userid, c.commentno, ct.content
+		FROM reportcomment c, commenttable ct, member m
+		WHERE c.commentno = ct.commentno
+		AND ct.userno = m.userno
+		ORDER BY complete ASC, coreportno DESC) 
+		B)) re WHERE rnum BETWEEN #{startNo} AND #{endNo}
+	</select>
+	
+	<select id="selectCommentNo" resultType="int">
+		SELECT commentno FROM reportcomment WHERE coreportno = #{deleteNo}
+	</select>
+	
+	<update id="updateReportComment" parameterType="int">
+		UPDATE COMMENTTABLE SET CONTENT='관리자에 의해 삭제된 댓글입니다.' WHERE COMMENTNO = #{commentno}
+	</update>
+	
+	<update id="updateReportCompleteComment" parameterType="int">
+		UPDATE reportcomment SET COMPLETE = 'Y' WHERE coreportno = #{deleteNo}
+	</update>
+	
+	<select id="selectReportInfoComment" resultType="admin.dto.ReportComment">
+		SELECT coreportno, reportdetail, report_date AS reportDate, complete, c.userNo, m.userid, c.commentno, ct.content
+		FROM reportcomment c, commenttable ct, member m
+		WHERE c.commentno = ct.commentno
+		AND ct.userno = m.userno
+        AND coreportno = #{coreportNo}
+	</select>
+	
+	<select id="selectCommentDetail" resultType="board.dto.Comment">
+		SELECT commentno, content, write_date AS writedate, userno, refcommentno FROM COMMENTTABLE WHERE commentno = #{commentNo}
+	</select>
+	
+	<select id="selectCommentuser" resultType="int">
+		SELECT userno FROM CommentTable WHERE commentno = #{commentNo}
+	</select>
+	
+	<select id="ReportBoardSearchselectAll" resultType="admin.dto.ReportBoard" parameterType="util.AdminPaging">
+		SELECT re.* FROM (SELECT rownum rnum, B.* FROM (
+        SELECT C.* FROM
+		(SELECT boreportno, reportdetail, report_date AS reportDate, complete, r.userNo, m.userid, r.boardno, b.boardtitle
+		FROM reportboard r, board b, member m
+		WHERE r.boardno = b.boardno
+		AND b.userno = m.userno
+		AND reportdetail LIKE ('%${search}%')
+		ORDER BY complete ASC,boreportno DESC) C) B)
+        re WHERE rnum BETWEEN #{startNo} AND #{endNo}
+	</select>
+	
+	<select id = "SelectBytheme" resultType="board.dto.Notice" parameterType="int">
+	
+		        SELECT noticeno,noticetitle,noticecontent,noticewritedate,userno
+		        FROM notice
+		        WHERE boardtypeno =  ${theme}
+		        ORDER BY noticeno DESC
+	
+	</select>
+	
+	<insert id="insertNotice" parameterType="board.dto.Notice">
+		<selectKey keyProperty="noticeno" order="BEFORE" resultType="int"> 
+		select seq_notice.nextval from dual
+		</selectKey>
+		insert into notice(noticeno,noticetitle,noticecontent,noticewritedate,userno,boardtypeno)
+		Values (#{noticeno},#{noticetitle},#{noticecontent},CURRENT_DATE,#{userno},#{boardtypeno})
+	</insert>
+	
+	<insert id="insertNoticeFile" parameterType="board.dto.NoticeFile">
+		insert into noticeFile(fileno  ,noticeno  , originname , storedname ,filesize )	
+		Values (seq_noticeFile.nextval  ,#{noticeno}  , #{originName} , #{storedName} ,#{fileSize} )
+	</insert>
+	
+	<update id="updateBoardtypelist" parameterType="java.util.List">
+		UPDATE BOARD SET BOARDTYPENO = 5 WHERE BOARDNO IN 
+		<foreach collection="list" item="boardno" open="(" close=")" separator=",">
+ 			#{boardno.boardno}
+		</foreach>
+	</update>
+	
+	<update id="updateReportCompletelist" parameterType="java.util.List">
+		UPDATE reportboard SET COMPLETE = 'Y' WHERE BOREPORTNO IN 
+		<foreach collection="list" item="boreportno" open="(" close=")" separator=",">
+ 			#{boreportno.boreportno}
+		</foreach>
+	</update>
+	
+	<update id="updateCommentTypelist" parameterType="java.util.List">
+		UPDATE COMMENTTABLE SET CONTENT='관리자에 의해 삭제된 댓글입니다.' WHERE COMMENTNO IN 
+		<foreach collection="list" item="commentNo" open="(" close=")" separator=",">
+ 			#{commentNo.commentNo}
+		</foreach>
+	</update>
+	
+	<update id="updateReportCompleteCommentlist" parameterType="java.util.List">
+		UPDATE reportcomment SET COMPLETE = 'Y' WHERE COREPORTNO IN 
+		<foreach collection="list" item="coreportNo" open="(" close=")" separator=",">
+ 			#{coreportNo.coreportNo}
+		</foreach>
+	</update>
+	
+	<update id="updateMember" parameterType="member.dto.Member">
+		UPDATE member
+  		SET userpw=#{userPw}, usernick=#{userNick}, email=#{email}, address=#{address}, zipcode=#{zipCode}, detailaddress=#{detailaddress }, latitude=#{latitude}, longitude=#{longitude}, phone=#{phone}, positionNo = #{positionNo} 
+  		WHERE userno=#{userNo}
+	</update>
+
+	
+	<select id="selectBynoticeno" parameterType="int" resultType="board.dto.Notice">
+		SELECT * FROM NOTICE WHERE noticeno = #{noticeno}
+	</select>
+	
+	<select id="selectnoticeFile" parameterType="int" resultType="board.dto.NoticeFile">
+		SELECT * FROM NOTICEFILE WHERE noticeno = #{noticeno} ORDER BY FILENO
+	</select>
+	
+	<delete id="deletenoticeFile" parameterType="int">
+		delete from noticefile where noticeno = #{noticeno}
+	</delete>
+	
+	<delete id="deletenotice" parameterType="int">
+		delete from notice where noticeno = #{noticeno}
+	</delete>
+	
+	<update id="updatenoticeDetail" parameterType="board.dto.Notice">
+		UPDATE notice
+		SET noticetitle = #{noticetitle} , noticecontent = #{noticecontent}, boardtypeno=#{boardtypeno}
+		WHERE noticeno = #{noticeno}
+	</update>
+	
+	<select id="selectnoticeFileByFileno"	parameterType="int" resultType = "board.dto.NoticeFile">
+		SELECT * FROM noticefile 
+		WHERE fileno = #{fileno}
+	</select>
+	
+	<delete id = "deleteFileByFileno" parameterType="int">
+		delete from noticeFile where fileno = #{fileno}	
+	</delete>
+	
+	<update id="updateMemberToAdmin" parameterType="int">
+		UPDATE MEMBER SET positionNo = 3 WHERE userno = #{userno}
+	</update>
+	
+	<select id="selectCountBlackByuserNo" parameterType="int" resultType="int">
+		SELECT count(*) FROM BLACKLIST WHERE userno = #{userno}
+	</select>
+	
+	<select id="selectCntByuserno" parameterType = "int" resultType="int">
+		select count(*) from Blacklist WHERE userno= #{userno}
+	</select>
+	
+	<delete id="deleteBlacklistOne" parameterType="int">
+		delete from blacklist where userno = #{userno}
+	</delete>
+	
+	
+	
+
+</mapper>

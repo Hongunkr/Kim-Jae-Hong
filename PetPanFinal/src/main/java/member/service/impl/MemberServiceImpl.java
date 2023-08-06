@@ -1,0 +1,766 @@
+package member.service.impl;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLEncoder;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
+
+import javax.mail.MessagingException;
+import javax.mail.Multipart;
+import javax.mail.internet.MimeMessage;
+import javax.servlet.ServletContext;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import board.dto.Board;
+import board.dto.Comment;
+import member.dao.face.MemberDao;
+import member.dto.Hospital;
+import member.dto.Member;
+import member.dto.Pet;
+import member.dto.PetFile;
+import member.service.face.MemberService;
+import shop.dto.Review;
+
+
+@Service
+public class MemberServiceImpl implements MemberService {
+	
+	private static final Logger logger = LoggerFactory.getLogger(MemberService.class);
+
+	@Autowired private  MemberDao memberDao;
+	@Autowired ServletContext context;
+	@Autowired private JavaMailSenderImpl mailSender;
+	
+	private int authNumber; 
+	
+	
+	@Override
+	public boolean login(Member member) {
+		logger.info("login() 🤣🤣 ");
+		
+		
+		if (memberDao.loginProc(member) > 0) {
+			
+			
+			return true;
+		}
+		
+		return false;
+	}
+	
+	@Override
+	public Member selectlogin(Member member) {
+		logger.info("member : {}", member);
+		Member member2 = memberDao.selectlogin(member);
+		
+		return member2;
+	}
+
+	@Override
+	public boolean selcetBlack(Member member) {
+		
+
+		if( memberDao.selcetBlack(member) > 0) {
+			
+			return true;
+		}
+		
+		return false;
+	}
+	
+	@Override
+	public boolean selectKakao(Member member) {
+
+		if( memberDao.selectKakao(member) > 0) {
+			
+			return true;
+		}
+		
+		return false;
+	}
+	
+	
+	@Override
+	public void insertJoin(Member member) {
+		
+		memberDao.insertJoin(member);
+	}
+
+	
+	public void makeRandomNumber() {
+		// 난수의 범위 111111 ~ 999999 (6자리 난수)
+		Random r = new Random();
+		int checkNum = r.nextInt(888888) + 111111;
+		System.out.println("인증번호 : " + checkNum);
+		authNumber = checkNum;
+	}
+	
+	
+	//이메일 보낼 양식! 
+	@Override
+	public int joinEmail(String email) {
+		makeRandomNumber();
+		String setFrom = "dabin9872@gmail.com"; // email-config에 설정한 자신의 이메일 주소를 입력 
+		String toMail = email;
+		String title = "회원 가입 인증 이메일 입니다."; // 이메일 제목 
+		String content = 
+				"홈페이지를 방문해주셔서 감사합니다." + 	//html 형식으로 작성 ! 
+                "<br><br>" + 
+			    "인증 번호는 " + authNumber + "입니다." + 
+			    "<br>" + 
+			    "해당 인증번호를 인증번호 확인란에 기입하여 주세요."; //이메일 내용 삽입
+		mailSend(setFrom, toMail, title, content);
+		
+		return authNumber;
+	}
+	
+	
+	
+	@Override
+	public int pwEmail(String email) {
+		makeRandomNumber();
+		String setFrom = "dabin9872@gmail.com"; // email-config에 설정한 자신의 이메일 주소를 입력 
+		String toMail = email;
+		String title = "비밀번호 찾기 인증 이메일 입니다."; // 이메일 제목 
+		String content = 
+				"비밀번호 찾기 인증 이메일입니다." + 	//html 형식으로 작성 ! 
+                "<br><br>" + 
+			    "인증 번호는 " + authNumber + "입니다." + 
+			    "<br>" + 
+			    "해당 인증번호를 인증번호 확인란에 기입하여 주세요."; //이메일 내용 삽입
+		mailSend(setFrom, toMail, title, content);
+		
+		return authNumber;
+	}
+	
+	
+	//이메일 전송 메소드
+	public void mailSend(String setFrom, String toMail, String title, String content) { 
+		
+		MimeMessage message = mailSender.createMimeMessage();
+//		// true 매개값을 전달하면 multipart 형식의 메세지 전달이 가능.문자 인코딩 설정도 가능하다.
+		try {
+			MimeMessageHelper helper = new MimeMessageHelper(message,true,"utf-8");
+			helper.setFrom(setFrom);
+			helper.setTo(toMail);
+			helper.setSubject(title);
+			// true 전달 > html 형식으로 전송 , 작성하지 않으면 단순 텍스트로 전달.
+			helper.setText(content,true);
+			mailSender.send(message);
+		} catch (MessagingException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	
+	
+	@Override
+	public String getKakaoApiFromAddress(String jibunAddress) {
+	    String apiKey = "9ae14f3088db483522887b5408416524";
+	    String apiUrl = "https://dapi.kakao.com/v2/local/search/address.json";
+	    String jsonString = null;
+
+	    try {
+	    	jibunAddress = URLEncoder.encode(jibunAddress, "UTF-8");
+	        
+	        
+	        String addr = apiUrl + "?query=" + jibunAddress;
+
+	        URL url = new URL(addr);
+	        URLConnection conn = url.openConnection();
+	        conn.setRequestProperty("Authorization", "KakaoAK " + apiKey);
+
+	        BufferedReader rd = null;
+	        rd = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
+	        StringBuffer docJson = new StringBuffer();
+
+	        String line;
+
+	        while ((line=rd.readLine()) != null) {
+	            docJson.append(line);
+	        }
+
+	        jsonString = docJson.toString();
+	        rd.close();
+
+	    } catch (UnsupportedEncodingException e) {
+	        e.printStackTrace();
+	    } catch (MalformedURLException e) {
+	        e.printStackTrace();
+	    } catch (IOException e) {
+	        e.printStackTrace();
+	    }
+	    
+	    logger.info("jibunAddress{}", jibunAddress);
+	    
+	    return jsonString;
+	    
+	    
+	    
+	}
+
+	@Override
+	public HashMap<String, String> getXYMapfromJson(String jsonString) {
+	    ObjectMapper mapper = new ObjectMapper();
+	    HashMap<String, String> XYMap = new HashMap<String, String>();
+
+	    try {
+	        TypeReference<Map<String, Object>> typeRef 
+	            = new TypeReference<Map<String, Object>>(){};
+	        Map<String, Object> jsonMap = mapper.readValue(jsonString, typeRef);
+
+	        @SuppressWarnings("unchecked")
+	        List<Map<String, String>> docList 
+	            =  (List<Map<String, String>>) jsonMap.get("documents");	
+
+	        Map<String, String> adList = (Map<String, String>) docList.get(0);
+	       
+	        XYMap.put("x",adList.get("x"));
+	        XYMap.put("y", adList.get("y"));
+
+	        logger.info("adList {} : ", adList);
+	        
+	    } catch (JsonParseException e) {
+	        e.printStackTrace();
+	    } catch (JsonMappingException e) {
+	        e.printStackTrace();
+	    } catch (IOException e) {
+	        e.printStackTrace();
+	    }
+	    
+	    logger.info("XYMap{}", XYMap);
+
+	    
+	    return XYMap;
+	}
+	
+	
+	@Override
+	public void insertkakaoJoin(Member member, String sosId) {
+		
+		member.setSuserno(sosId);
+		logger.info("impl : {}", sosId);
+		logger.info("impl : {}", member);
+		
+		
+		memberDao.kakaoinsert(member);
+	}
+
+
+	@Override
+	public Member selectSuser(String sosId) {
+		
+		return memberDao.selectSuser(sosId);
+		
+	}
+	
+	@Override
+	public Member userDetail(Member userNo) {
+
+		
+		return memberDao.selectDetailMember(userNo);
+	}
+	
+	
+	
+	@Override
+	public void updateMember(Member member) {
+
+		memberDao.updateMember(member);
+	}
+	
+	
+	
+	@Override
+	public int pet(Pet pet, MultipartFile petFile) {
+
+//		int petNo = memberDao.selectPetNo();
+//		pet.setPetNo(petNo);
+		
+		// 파일이 저장될 경로
+		String storedPath = context.getRealPath("petfile");
+		File storedFolder = new File(storedPath);
+		if( !storedFolder.exists() ) {
+			storedFolder.mkdir();
+		}
+		
+		// 파일이 저장될 이름
+		String originName = petFile.getOriginalFilename();
+
+		
+		// 저장될 파일 정보 객체
+		File dest = null;
+		
+		String storedName = null;
+		
+		//저장된 파일이름 중복을 방지하는 로직임
+		do {
+		
+			storedName = UUID.randomUUID().toString().split("-")[0];
+			
+			dest = new File(storedFolder, storedName);
+			
+		}while(dest.exists());
+		
+		
+		try {
+			petFile.transferTo(dest);
+		} catch (IllegalStateException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		
+		pet.setPetNo(memberDao.selectPetNo()); 
+		
+		
+		PetFile file = new PetFile();
+		
+		file.setPetNo( pet.getPetNo() );
+		file.setOriginName(originName);
+		file.setStoredName(storedName);
+		file.setFileSize(petFile.getSize());
+	
+		logger.info("pet: {}", pet);
+		memberDao.insertPet(pet);
+		
+		memberDao.insertPetfile(file);
+		
+		return 0;
+	}
+
+
+	@Override
+	public List<Pet> petInfo(Member userNo) {
+		
+		return memberDao.selectPetInfo(userNo);
+	}
+	
+	@Override
+	public List<PetFile> petFile(List<PetFile> petFileList) {
+		
+		List<PetFile> returnList = new ArrayList<PetFile>();
+		
+		for(int i=0; i<petFileList.size(); i++) {
+			PetFile petFile = memberDao.selectPetFile(petFileList.get(i).getPetNo());
+			
+			returnList.add(petFile);
+		}
+		
+		return returnList;
+		
+	}
+
+	@Override
+	public boolean selectHospital(Member member) {
+
+		if( memberDao.selectHospital(member) == 2) {
+			
+			return true;
+		}
+		
+		return false;
+	}
+	
+	
+	
+	@Override
+	public int insertHospital(Hospital hospital) {
+		int hospitalNo = 0;
+		// 이미 병원 정보가 DB에 있는지 확인
+		Integer hn = memberDao.selectIsHospitalNo(hospital.getUserNo());
+		if( null == hn || hn == 0) { //없을 때
+			memberDao.insertHospital(hospital);
+		}else { //있을 때
+			hospitalNo = memberDao.selectHospitalNo(hospital.getUserNo());
+		}
+		return hospitalNo;
+	}
+	
+	@Override
+	public List<Review> myreview(int userno) {
+		
+		List<Review> list = memberDao.myreview(userno);
+		
+		return list;
+		
+	}
+	
+	@Override
+	public Member searchId(Member member) {
+
+		
+		return memberDao.searchId(member);
+	}
+	
+	@Override
+	public Member searchPw(Member member) {
+		
+		return memberDao.searchPw(member);
+	}
+	
+	@Override
+	public void updatePw(Member member) {
+
+		memberDao.updatePw( member);	
+	}
+	
+	@Override
+	public int idDu(Member member) {
+		return memberDao.idDu(member);
+	}
+
+	@Override
+	public int nickDu(Member member) {
+		return memberDao.nickDu(member);
+	}
+	
+	
+	@Override
+	public List<Board> myContent(int userno) {
+		
+		List<Board> content = memberDao.myContent(userno);
+		
+		return content;
+	}
+	
+	@Override
+	public List<Map<String, Object>> myComment(int userno) {
+
+		List<Map<String, Object>> comment = memberDao.myComment(userno);
+		
+		return comment;
+	}
+
+	@Override
+	public Member getMemberInfoByUserid(Member member) {
+		return memberDao.selectUserNoMemberByUserId(member);
+	}
+	
+	
+	@Override
+	public List<PetFile> selectPetprofile(PetFile petFile) {
+
+		return memberDao.selectPetprofile(petFile);
+	}
+	
+	
+	@Override
+	public Pet selectPetByPetNo(Pet pet) {
+	
+		return memberDao.selectPetByPetNo(pet);
+	}	
+	
+	@Override
+	public PetFile selectPetFileByPet(Pet pet) {
+	
+		return memberDao.selectPetFileByPet(pet);
+
+	}
+	@Override
+	public int petUpdate(Pet pet, MultipartFile petFile) {
+		
+		
+		String storedPath = context.getRealPath("petfile");
+		File storedFolder = new File(storedPath);
+		if( !storedFolder.exists() ) {
+			storedFolder.mkdir();
+		}
+		
+		// 파일이 저장될 이름
+		String originName = petFile.getOriginalFilename();
+
+		
+		// 저장될 파일 정보 객체
+		File dest = null;
+		
+		String storedName = null;
+		
+		//저장된 파일이름 중복을 방지하는 로직임
+		do {
+		
+			storedName = UUID.randomUUID().toString().split("-")[0];
+			
+			dest = new File(storedFolder, storedName);
+			
+		}while(dest.exists());
+		
+		
+		try {
+			petFile.transferTo(dest);
+		} catch (IllegalStateException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		
+		
+		
+		PetFile file = new PetFile();
+		
+		file.setPetNo( pet.getPetNo()  );
+		file.setOriginName(originName);
+		file.setStoredName(storedName);
+		file.setFileSize(petFile.getSize());
+		
+		
+		
+		PetFile dfile =  (PetFile)memberDao.selectPetFileByPet(pet);
+		
+
+	
+		logger.info("pet: {}", pet);
+		memberDao.updatePet(pet);
+		
+		
+		if(petFile.getSize() != 0) {
+		
+		memberDao.deletePetfile(pet);
+		
+		memberDao.insertPetfile(file);
+		}
+		
+		return 0;
+	}
+	
+	
+	@Override
+	public void deletePetPhoto(PetFile petFile) {
+		
+		memberDao.deletePetPhoto(petFile);
+		
+	}
+	
+	@Override
+	public void deletePetInfo(Pet pet) {
+
+		memberDao.deletePetInfo(pet);
+		
+	}
+	
+	@Override
+	public boolean selectMgr(Member member) {
+
+		
+		if( memberDao.selectMgr(member) == 3) {
+			
+			return true;
+		}
+		
+		return false;
+	}
+	@Override
+	public int selectByUserno(int userno) {
+		
+		return memberDao.selectByUserno(userno);
+	}
+
+	@Override
+	public Member findMemberFromId(Member member) {
+		
+		Member check = memberDao.selectUserNoMemberByUserId(member);
+		
+		return check;
+	}
+
+	@Override
+	public int addAndGetFailStack(int userno) {
+		int check = memberDao.selectcountStack(userno);
+		System.out.println(check);
+		if(check == 0) {
+			memberDao.insertFailStack(userno);
+		}else if (check != 0) {	
+			memberDao.updateFailStack(userno);
+		}
+		int failstack = memberDao.selectStack(userno);
+		
+		
+		return failstack;
+	}
+
+	@Override
+	public void deleteFailStack(int userNo) {
+		memberDao.deleteFailStack(userNo);
+		
+	}
+
+	@Override
+	public int GetFailStack(int userNo) {
+		int failstack = 0;
+		if(memberDao.selectcountStack(userNo)>0) {
+		failstack = memberDao.selectStack(userNo);
+		}
+		return failstack;
+	}
+
+	@Override
+	public String BringCaptchaKey() {
+		
+	    String clientId = "_hKrZaPw2JlxHW2OwF4S";//애플리케이션 클라이언트 아이디값";
+	    String clientSecret = "b3FpD5nVb_";//애플리케이션 클라이언트 시크릿값";
+	    String key = null;
+	    try {
+	        String code = "0"; // 키 발급시 0,  캡차 이미지 비교시 1로 세팅
+	        String apiURL = "https://openapi.naver.com/v1/captcha/nkey?code=" + code;
+	        URL url = new URL(apiURL);
+	        HttpURLConnection con = (HttpURLConnection)url.openConnection();
+	        con.setRequestMethod("GET");
+	        con.setRequestProperty("X-Naver-Client-Id", clientId);
+	        con.setRequestProperty("X-Naver-Client-Secret", clientSecret);
+	        int responseCode = con.getResponseCode();
+	        BufferedReader br;
+	        if(responseCode==200) { // 정상 호출
+	            br = new BufferedReader(new InputStreamReader(con.getInputStream()));
+	        } else {  // 에러 발생
+	            br = new BufferedReader(new InputStreamReader(con.getErrorStream()));
+	        }
+	        String inputLine;
+	        StringBuffer response = new StringBuffer();
+	        while ((inputLine = br.readLine()) != null) {
+	            response.append(inputLine);
+	        }
+	        br.close();
+	        System.out.println("결과는 =" + response.toString());
+	        key = response.substring(8, 24);
+	        System.out.println(key);
+	    } catch (Exception e) {
+	        System.out.println(e);
+	    }
+
+		return key;
+		
+	}
+
+	@Override
+	public String BringCaptchaPhoto(String key2) {
+	    String clientId = "_hKrZaPw2JlxHW2OwF4S";//애플리케이션 클라이언트 아이디값";
+	    String clientSecret = "b3FpD5nVb_";//애플리케이션 클라이언트 시크릿값";
+	    String fileno = "";
+	    try {
+	        String key = key2; // https://openapi.naver.com/v1/captcha/nkey 호출로 받은 키값
+	        String apiURL = "https://openapi.naver.com/v1/captcha/ncaptcha.bin?key=" + key;
+	        URL url = new URL(apiURL);
+	        HttpURLConnection con = (HttpURLConnection)url.openConnection();
+	        con.setRequestMethod("GET");
+	        con.setRequestProperty("X-Naver-Client-Id", clientId);
+	        con.setRequestProperty("X-Naver-Client-Secret", clientSecret);
+	        int responseCode = con.getResponseCode();
+	        BufferedReader br;
+	        if(responseCode==200) { // 정상 호출
+	            InputStream is = con.getInputStream();
+	            int read = 0;
+	            byte[] bytes = new byte[1024];
+	    		String storedPath = context.getRealPath("upload");
+	    		logger.info("storedPath + {}", storedPath );
+	    		
+	    		// upload폴더가 존재하지 않으면 생성한다.
+	    		File storedFolder = new File(storedPath);
+	    		storedFolder.mkdir();
+	            // 랜덤한 이름으로 파일 생성
+	            String tempname = Long.valueOf(new Date().getTime()).toString();
+	            
+	            fileno += tempname;
+	            fileno += ".jpg";
+	            File f = new File(storedPath + "/" + tempname + ".jpg");
+	            f.createNewFile();
+	            OutputStream outputStream = new FileOutputStream(f);
+	            while ((read =is.read(bytes)) != -1) {
+	                outputStream.write(bytes, 0, read);
+	            }
+	            is.close();
+	        } else {  // 에러 발생
+	            br = new BufferedReader(new InputStreamReader(con.getErrorStream()));
+	            String inputLine;
+	            StringBuffer response = new StringBuffer();
+	            while ((inputLine = br.readLine()) != null) {
+	                response.append(inputLine);
+	            }
+	            br.close();
+	            System.out.println(response.toString());
+	        }
+	    } catch (Exception e) {
+	        System.out.println(e);
+	        System.out.println("에러?");
+	    }
+		return fileno;
+		
+	}
+
+	@Override
+	public boolean checktrue(String captcha, String key2) {
+	    String clientId = "_hKrZaPw2JlxHW2OwF4S";//애플리케이션 클라이언트 아이디값";
+	    String clientSecret = "b3FpD5nVb_";//애플리케이션 클라이언트 시크릿값";
+	    String check = null;
+	    try {
+	        String code = "1"; // 키 발급시 0,  캡차 이미지 비교시 1로 세팅
+	        String key = key2; // 캡차 키 발급시 받은 키값
+	        String value = captcha; // 사용자가 입력한 캡차 이미지 글자값
+	        String apiURL = "https://openapi.naver.com/v1/captcha/nkey?code=" + code +"&key="+ key + "&value="+ value;
+
+	        URL url = new URL(apiURL);
+	        HttpURLConnection con = (HttpURLConnection)url.openConnection();
+	        con.setRequestMethod("GET");
+	        con.setRequestProperty("X-Naver-Client-Id", clientId);
+	        con.setRequestProperty("X-Naver-Client-Secret", clientSecret);
+	        int responseCode = con.getResponseCode();
+	        BufferedReader br;
+	        if(responseCode==200) { // 정상 호출
+	            br = new BufferedReader(new InputStreamReader(con.getInputStream()));
+	        } else {  // 에러 발생
+	            br = new BufferedReader(new InputStreamReader(con.getErrorStream()));
+	        }
+	        String inputLine;
+	        StringBuffer response = new StringBuffer();
+	        while ((inputLine = br.readLine()) != null) {
+	            response.append(inputLine);
+	        }
+	        br.close();
+	        System.out.println(response.toString());
+	        check = response.substring(10, 11);
+	        System.out.println(check);
+	    } catch (Exception e) {
+	        System.out.println(e);
+	    }
+	    if(check.equals("t")) {
+	    	return true;
+	    }else if (check.equals("f")) {
+	    	return false;
+	    }else {
+	    	return false;
+	    }
+	}
+
+	
+	
+	
+}

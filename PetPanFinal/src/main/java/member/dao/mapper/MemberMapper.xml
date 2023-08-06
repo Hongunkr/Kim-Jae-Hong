@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+  <mapper namespace="member.dao.face.MemberDao">
+  
+  	<select id ="loginProc" resultType="int">
+  		SELECT COUNT(*)
+  		FROM member
+  		WHERE userId=#{userId} AND userPw=#{userPw}
+  	</select>
+  
+  	<insert id="insertJoin" parameterType="member.dto.Member">
+  		INSERT INTO member( userno, username, userid, userpw, email, address, zipcode, phone, detailaddress, positionno, latitude, longitude, usernick )
+  		VALUES(seq_member.nextval, #{userName}, #{userId}, #{userPw}, #{email},  #{address}, #{zipCode}, #{phone}, #{detailaddress}, #{positionNo}, #{latitude}, #{longitude}, #{userNick} )
+  	</insert>
+  	
+  	
+  	<select id="selectlogin" resultType="member.dto.Member" parameterType="member.dto.Member">
+  		SELECT * FROM member
+  		WHERE userId=#{userId}
+  	</select>
+  	
+  	
+  	 <select id ="selcetBlack" resultType="int">
+  		SELECT COUNT(*)
+  		FROM blacklist
+  		WHERE userNo=#{userNo}
+  	</select>
+  	
+  	 <select id ="selectKakao" resultType="int">
+  		SELECT COUNT(*)
+  		FROM member
+  		WHERE suserno=#{suserno}
+  	</select>
+
+  	 <select id ="selectMgr" resultType="int" parameterType="member.dto.Member">
+  		SELECT positionNo FROM member
+  		WHERE userNo=#{userNo}
+  	</select>
+  	
+  	<insert id="kakaoinsert" parameterType="member.dto.Member">
+  		INSERT INTO member( userno, username, userid, userpw, email, address, zipcode, phone, detailaddress, positionno, latitude, longitude, suserno, usernick )
+  		VALUES( seq_member.nextval, #{userName}, #{userId}, #{userPw}, #{email},  #{address}, #{zipCode}, #{phone}, #{detailaddress}, #{positionNo}, #{latitude}, #{longitude}, #{suserno}, #{userNick}  )
+  	</insert>
+  	
+  	
+  	<select id="selectDetailMember" parameterType="int" resultType="member.dto.Member">
+  		SELECT * FROM member
+  		WHERE userNo=#{userNo}
+  	</select>
+  	
+  	<update id="updateMember" parameterType="member.dto.Member">
+  		UPDATE member
+  		SET userpw=#{userPw}, usernick=#{userNick}, email=#{email}, address=#{address}, zipcode=#{zipCode}, detailaddress=#{detailaddress }, latitude=#{latitude}, longitude=#{longitude}, phone=#{phone}
+  		WHERE userno=#{userNo}
+  	</update>
+  	
+  	<select id="selectSuser" resultType="member.dto.Member" parameterType="String">
+  		SELECT * FROM member
+  		WHERE suserNo = #{suserNo}
+  	</select>
+  	
+  	<select id="selectPetNo" resultType="int">
+  		SELECT seq_pet.nextval FROM dual	
+  	</select>
+  	
+  	<insert id="insertPet" parameterType="member.dto.Pet">
+  		INSERT INTO pet(petno, petname, type, userno)
+  		VALUES( #{petNo}, #{petName}, #{type}, #{userNo})
+  	</insert>
+  	
+  	<insert id="insertPetfile" parameterType="member.dto.PetFile">
+  		INSERT INTO petfile( fileno, originname, storedname, filesize, petno)
+  		VALUES(seq_petfile.nextval, #{originName}, #{storedName}, #{fileSize}, #{petNo})
+  	</insert>
+
+	<select id="selectPetInfo" parameterType="int" resultType="member.dto.Pet">
+		SELECT * FROM pet
+		WHERE userNo=#{userNo}
+		ORDER BY petno
+	</select>
+	
+
+	<select id="selectPetFile" parameterType="int" resultType="member.dto.PetFile">
+		SELECT * FROM petfile
+		WHERE petNo=#{petNo}
+		ORDER BY petno
+	</select>
+
+	<select id ="selectHospital" resultType="int" parameterType="member.dto.Member">
+  		SELECT positionNo FROM member
+  		WHERE userNo=#{userNo}
+  	</select>
+
+	<insert id="insertHospital" parameterType="member.dto.Hospital">
+  		INSERT INTO hospital(hospitalNo, hospitalName, hospitalCode, userNo, 
+  		<if test="mammalia != null and !mammalia.equals('')">
+  			mammalia,
+  		</if>
+  		<if test="reptile != null and !reptile.equals('')">
+  			 reptile,
+  		</if>
+  		<if test="rodent != null and !rodent.equals('')">
+  			rodent,
+  		</if>  		
+  		<if test="birds != null and !birds.equals('')">
+  			birds,
+  		</if>
+  		    open, close )
+  		
+  		VALUES( seq_hospital.nextval, #{hospitalName}, #{hospitalCode}, #{userNo},
+  		<if test="mammalia != null and !mammalia.equals('')">
+  			#{mammalia},
+  		</if>
+  		<if test="reptile != null and !reptile.equals('')">
+  			 #{reptile},
+  		</if>
+  		<if test="rodent != null and !rodent.equals('')">
+  			 #{rodent},
+  		</if>  		
+  		<if test="birds != null and !birds.equals('')">
+  			 #{birds},
+  		</if>
+  		     #{open}, #{close})
+  	</insert>
+
+	<select id="myreview" parameterType="int" resultType="shop.dto.Review">
+		SELECT * FROM review
+		where userNo = #{userNo}
+	</select>
+
+	<select id="myContent" parameterType="int" resultType="board.dto.Board">
+		SELECT boardNo, boardTitle, content, write_date as writeDate
+		, hit, userNo, boardTypeNo
+		FROM board
+		WHERE userNo = #{userNo}
+		ORDER BY boardNo desc
+	</select>
+
+	<select id="myComment" parameterType="int" resultType="HashMap">
+		SELECT c.commentNo, c.content, c.boardNo, c.write_date as writeDate, b.boardNo, b.boardTypeNo
+		FROM commenttable c
+		INNER JOIN board b ON c.boardNo = b.boardNo
+		WHERE c.userNo = #{userNo}
+		ORDER BY commentNo desc
+	</select>
+
+	
+	<select id="selectIsHospitalNo" parameterType="int" resultType="integer">
+		select count(*)
+		from hospital
+		where userno = #{userNo}
+	</select>
+	
+	<select id="selectHospitalNo" parameterType="int" resultType="integer">
+		select hospitalNo
+		from hospital
+		where userNo = #{userNo}
+	</select>	
+	
+	<select id="searchId" parameterType="member.dto.Member" resultType="member.dto.Member">
+		SELECT * FROM member
+		WHERE userName=#{userName} AND phone=#{phone}
+	</select>
+	
+	<select id="searchPw" parameterType="member.dto.Member" resultType="member.dto.Member">
+		SELECT * FROM member
+		WHERE userName=#{userName} AND userId=#{userId} AND email=#{email}
+	</select>
+	
+	<update id="updatePw" parameterType="member.dto.Member">
+  		UPDATE member
+  		SET userPw=#{userPw}
+  		WHERE userNo=#{userNo}
+  	</update>
+	
+	<select id="idDu" resultType="int">
+      SELECT count(*) FROM member
+      WHERE userId = #{userId}
+	</select>
+
+	<select id="nickDu" resultType="int">
+      SELECT count(*) FROM member
+      WHERE userNick = #{userNick}
+	</select>
+	
+	<select id="selectPetprofile" parameterType="member.dto.PetFile" resultType="member.dto.PetFile">
+		SELECT * FROM petfile
+		WHERE petNo=#{petNo}
+	</select>
+  	
+  	<select id="selectPetByPetNo" parameterType="member.dto.Pet" resultType="member.dto.Pet">
+  		SELECT * FROM pet
+  		WHERE petNo= #{petNo}
+  	</select>
+  	
+  	<select id="selectPetFileByPet" parameterType="member.dto.Pet" resultType="member.dto.PetFile">
+  		SELECT * FROM petfile
+  		WHERE petNo= #{petNo}
+  	</select>
+  	
+  	
+  	<delete id="deletePetfile" parameterType="member.dto.Pet">
+  		DELETE FROM petfile WHERE petno = #{petNo}
+  	</delete>
+  	
+  	<update id="updatePet" parameterType="member.dto.Pet">
+  		update Pet 
+  		set petName = #{petName}, type=#{type}
+  		where petNo = #{petNo}
+  	</update>
+  	  	
+	<select id="selectUserNoMemberByUserId" parameterType="member.dto.Member" resultType="member.dto.Member">
+		SELECT userno, usernick FROM member
+		WHERE userid = #{userId}
+	</select>
+  	
+  	 <delete id="deletePetPhoto" parameterType="int">
+  		DELETE FROM petfile WHERE petNo=#{petNo}
+  	</delete>
+  	
+  	<delete id="deletePetInfo" parameterType="int">
+  		DELETE FROM pet WHERE petNo=#{petNo}
+  	</delete>
+  	
+  	<select id="selectByUserno" parameterType = "int" resultType="int">
+  		select count(*) from member where userno = #{userno}  	
+  	</select>
+  	
+  	<select id="selectStack" parameterType="int" resultType="int">
+  		select failcount from loginfail where userno = #{userno}
+  	</select>
+  	
+  	<insert id="insertFailStack" parameterType="int">
+  		insert into loginfail (failno , failcount, userno) VALUES (seq_loginfail.nextval, 1, #{userno})
+  	</insert>
+  	
+  	<update id="updateFailStack" parameterType="int">
+  		UPDATE loginfail SET failcount = failcount + 1 WHERE userno = #{userno}
+  	</update>
+  	
+  	<select id="selectcountStack" parameterType="int" resultType="int">
+  		select count(*) from loginfail where userno = #{userno}
+  	</select>
+  	
+  	<delete id="deleteFailStack" parameterType="int">
+  		DELETE FROM loginfail where userno = #{userno}
+  	</delete>
+  
+  	
+  	
+  </mapper>

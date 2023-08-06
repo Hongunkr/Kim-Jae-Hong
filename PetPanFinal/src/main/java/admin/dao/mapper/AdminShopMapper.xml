@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  
+  <mapper namespace="admin.dao.face.AdminShopDao">
+  	<select id="selectShopTotalSearch" resultType="int" parameterType="String">
+		SELECT count(*) FROM SHOP WHERE NAME LIKE ('%${search}%') OR SHOPCONTENT LIKE ('%${search}%')
+	</select>
+	
+  	<select id="ShoptselectAll" resultType="shop.dto.Shop" parameterType="util.AdminPaging">
+  		SELECT re.* FROM(SELECT rownum rnum, O.* FROM(SELECT * FROM SHOP WHERE NAME LIKE ('%${search}%') ORDER BY OBJECTNO DESC) O) re WHERE rnum BETWEEN #{startNo} AND #{endNo}
+  	</select>
+  	
+  	<update id="updateShop" parameterType="int">
+		UPDATE SHOP SET DELETEOBJ = 0 WHERE OBJECTNO = #{deleteNo}
+	</update>
+	
+	<select id="selectNextObj" resultType="int">
+		SELECT SEQ_SHOP.NEXTVAL FROM DUAL
+	</select>
+	
+	<insert id="insertShop" parameterType="shop.dto.Shop">
+		INSERT INTO SHOP (objectno, name, price, remain, shopcontent, deleteobj, img1 )
+		VALUES(#{objectno} ,#{name}, #{price}, #{remain}, #{shopcontent}, 1, #{img1} )
+	</insert>
+	
+	<insert id="insertShopFile" parameterType="shop.dto.ShopFile">
+		INSERT INTO SHOPFILE (fileno, originname, storedname, filesize, objectno)
+		VALUES(seq_shopfile.nextval, #{originname}, #{storedname}, #{filesize}, #{objectno} )
+	</insert>
+	
+	<select id="selectShop" parameterType="int" resultType="shop.dto.Shop">
+		SELECT * FROM SHOP WHERE OBJECTNO = #{objectno}
+	</select>
+	
+	<select id="selectShopFile" parameterType="int" resultType="shop.dto.ShopFile">
+		SELECT * FROM SHOPFILE WHERE OBJECTNO = #{objectno} ORDER BY FILENO
+	</select>
+	
+	<select id="selectShopFileByFileno" resultType="shop.dto.ShopFile">
+		SELECT * FROM SHOPFILE WHERE FILENO = #{e}
+	</select>
+	
+	<delete id="deleteChangeFileOnDb" parameterType="int">
+		DELETE FROM SHOPFILE WHERE FILENO = #{e}
+	</delete>
+	
+	<update id="updateShopDetail" parameterType="shop.dto.Shop">
+		UPDATE SHOP SET NAME = #{name}, 
+		PRICE = #{price}, 
+		REMAIN = #{remain}, 
+		SHOPCONTENT = #{shopcontent} 
+		WHERE OBJECTNO = #{objectno}
+	</update>
+	
+	<update id="changeShopDeleteobj" parameterType="int">
+		UPDATE SHOP SET DELETEOBJ = 0 WHERE OBJECTNO = #{objectno}
+	</update>
+	
+	<select id="selectAllBuyer" resultType="hashmap" parameterType="util.AdminPaging">
+		SELECT re.* FROM (SELECT rownum rnum, B.* FROM (
+		(SELECT o.buyno, buyername, buydate, buyerphone, o.complete, t.quantity, t.objectno, s.name , o.userno
+		FROM ORDERUSER o, ORDERTHING t, SHOP s
+		WHERE o.buyno = t.buyno
+		AND t.objectno = s.objectno
+		AND buyername LIKE ('%${search}%')
+		ORDER BY o.buyno DESC) B)) re WHERE rnum BETWEEN #{startNo} AND #{endNo}
+	</select>
+	
+	<select id="selectTotalSearchBuyer" resultType="int">
+		SELECT count(*) FROM ORDERUSER WHERE BUYERNAME LIKE ('%${search}%') OR BUYERPHONE LIKE ('%${search}%')
+	</select>
+	
+	<select id="selectObjectno" resultType="shop.dto.OrderThing">
+		SELECT objectno, quantity FROM ORDERTHING WHERE buyno = #{buyno}
+	</select>
+	
+	<update id="updateObjectReamin" parameterType="shop.dto.OrderThing">
+		UPDATE SHOP SET REMAIN = REMAIN - #{quantity} WHERE objectno = #{objectno}
+	</update>
+	
+	<update id="updateShopDeleteObj" parameterType="java.util.List">
+		UPDATE SHOP SET DELETEOBJ = 0 WHERE OBJECTNO IN
+		<foreach collection="list" item="objectNo" open="(" close=")" separator=",">
+ 			#{objectNo.objectNo}
+		</foreach>
+	</update>
+	
+	<update id="updateShopResellObj" parameterType="java.util.List">
+		UPDATE SHOP SET DELETEOBJ = 1 WHERE OBJECTNO IN
+		<foreach collection="list" item="objectNo" open="(" close=")" separator=",">
+ 			#{objectNo.objectNo}
+		</foreach>
+	</update>
+	
+	<update id="updateOrderUserComplete" parameterType="java.util.List">
+		UPDATE ORDERUSER SET COMPLETE = 'y' WHERE buyno IN
+		<foreach collection="list" item="buyNo" open="(" close=")" separator=",">
+ 			#{buyNo.buyNo}
+		</foreach>
+	</update>
+	
+	 <select id="countTotalReportShop" resultType="int" parameterType="String">
+		SELECT count(*) FROM REPORTOBJECT WHERE REPORTDETAIL LIKE ('%${search}%')
+	</select>
+	
+	<select id="ReportShopselectAll" resultType="admin.dto.ReportObject" parameterType="util.AdminPaging">
+	SELECT re.*
+		FROM (
+		    SELECT rownum rnum, B.*
+		    FROM (
+		        SELECT OBJREPORTNO, R.OBJECTNO, S.NAME, REPORTDETAIL ,REPORT_DATE AS REPORTDATE, COMPLETE, R.USERNO, M.USERNAME
+		        FROM REPORTOBJECT R, SHOP S, MEMBER M
+		        WHERE R.OBJECTNO = S.OBJECTNO
+		        AND R.USERNO = M.USERNO
+		        AND REPORTDETAIL LIKE ('%${search}%')
+		        ORDER BY UPPER(complete) ASC, OBJREPORTNO DESC
+		    ) B
+		) re
+    WHERE rnum BETWEEN #{startNo} AND #{endNo}
+  	</select>
+  	
+  	<select id="selectReportObject" parameterType="int" resultType="admin.dto.ReportObject">
+  		SELECT OBJREPORTNO, R.OBJECTNO, S.NAME, REPORTDETAIL ,REPORT_DATE AS REPORTDATE, COMPLETE, R.USERNO, M.USERNAME, S.DELETEOBJ
+		FROM REPORTOBJECT R, SHOP S, MEMBER M
+		WHERE OBJREPORTNO = #{objreportno}
+		AND R.OBJECTNO = S.OBJECTNO
+        AND R.USERNO = M.USERNO
+  	</select>
+  	
+  	<select id="selectReportMember" parameterType="admin.dto.ReportObject" resultType="member.dto.Member">
+  		SELECT * FROM MEMBER
+  		WHERE USERNO = #{userNo}
+  	</select>
+  	
+  	<update id="updateReportobject" parameterType="int">
+  		UPDATE REPORTOBJECT SET COMPLETE = 'Y' WHERE objreportNo = #{objreportNo}
+  	</update>
+  	
+  	<update id="updateReportObjectComplete" parameterType="java.util.List">
+  		UPDATE REPORTOBJECT SET COMPLETE = 'Y' WHERE objreportNo IN
+  		<foreach collection="list" item="objreportNo" open="(" close=")" separator=",">
+ 			#{objreportNo.objreportNo}
+		</foreach>
+  	</update>
+  	
+  	<select id="selectObjectReamin" parameterType="shop.dto.OrderThing" resultType="int">
+  		SELECT REMAIN FROM SHOP WHERE OBJECTNO = #{objectno}
+  	</select>
+	
+  </mapper>

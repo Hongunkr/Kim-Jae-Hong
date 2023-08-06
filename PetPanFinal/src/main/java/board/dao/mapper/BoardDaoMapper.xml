@@ -1,0 +1,756 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="board.dao.face.BoardDao" >
+	
+	<select id="selectNoticeCntAll" parameterType="string" resultType="int" >
+		SELECT count(*) cnt FROM notice
+		WHERE noticetitle LIKE '%${search}%'
+	</select>
+	
+	<select id="selectNoticeAll" parameterType="util.Paging" resultType="hashmap">
+		SELECT * FROM(
+    		SELECT rownum rnum, S.* 
+    		FROM (
+    			SELECT noticeno,
+        			NOTICETITLE,
+        			noticecontent,
+        			noticewritedate,
+        			N.userno,
+        			boardtypeno,
+        			M.username 
+        		FROM notice N, member M
+        		WHERE noticetitle LIKE '%${search}%' AND n.userno = m.userno
+				ORDER BY noticeno DESC
+        		) S
+    	)
+		WHERE rnum BETWEEN #{startNo} AND #{endNo}
+	</select>
+	
+	<select id="selectNoticeByNoticeno" parameterType="int" resultType="board.dto.Notice">
+		SELECT * FROM notice
+		WHERE noticeno = #{noticeno}
+	</select>
+	
+	<select id="selectCareCntAll" parameterType="string" resultType="int">
+		SELECT count(*) FROM board, boardfile, member
+		WHERE boardtitle LIKE '%${search}%' 
+			AND boardtypeno = 1 AND board.boardno = boardfile.boardno
+			AND member.userno = board.userno
+			<choose>
+				<when test="distance == 2" >
+					 AND latitude BETWEEN #{loginMember.latitude}-0.0129 AND #{loginMember.latitude}+0.0129
+					 AND longitude BETWEEN #{loginMember.longitude}-0.0159 AND #{loginMember.longitude}+0.0159
+				</when>
+				<when test="distance == 4" >
+					 AND latitude BETWEEN #{loginMember.latitude}-0.0258 AND #{loginMember.latitude}+0.0258
+					 AND longitude BETWEEN #{loginMember.longitude}-0.0318 AND #{loginMember.longitude}+0.0318
+				</when>
+				<when test="distance == 6" >
+					 AND latitude BETWEEN #{loginMember.latitude}-0.0387 AND #{loginMember.latitude}+0.0387
+					 AND longitude BETWEEN #{loginMember.longitude}-0.0477 AND #{loginMember.longitude}+0.0477
+				</when>
+				<when test="distance == 8" >
+					 AND latitude BETWEEN #{loginMember.latitude}-0.0516 AND #{loginMember.latitude}+0.0516
+					 AND longitude BETWEEN #{loginMember.longitude}-0.0636 AND #{loginMember.longitude}+0.0636
+				</when>
+				<when test="distance == 10" >
+					 AND latitude BETWEEN #{loginMember.latitude}-0.0645 AND #{loginMember.latitude}+0.0645
+					 AND longitude BETWEEN #{loginMember.longitude}-0.0795 AND #{loginMember.longitude}+0.0795
+				</when>
+			</choose>
+	</select>
+	
+	
+	<select id="selectCareAll" parameterType="util.Paging" resultType="hashmap">
+		SELECT * FROM(
+        	SELECT rownum rnum, S.* 
+        	FROM ( 
+            	SELECT B.boardno,
+                	boardtitle,
+                	content,
+                	write_date AS writedate,
+                	hit,
+                	B.userno,
+                	B.boardtypeno,
+                	M.userid,
+                	M.latitude,
+                	M.longitude,
+                	(SELECT count(*) FROM boardrecommend R WHERE B.boardno = R.boardno) AS recommend,
+                	(SELECT count(*) FROM commenttable C WHERE C.boardno = B.boardno ) AS commentno,
+                	bf.originname,
+                	bf.storedname
+                FROM Board B, Member M, BoardFile BF
+                WHERE boardtitle LIKE '%${search}%' AND boardtypeno=1 AND B.userno = M.userno
+                AND BF.fileno = (SELECT max(fileno) FROM boardFile BF WHERE B.boardno = BF.boardno(+))
+            	ORDER BY boardno DESC
+			) S
+        )
+		WHERE rnum BETWEEN #{startNo} AND #{endNo}
+	</select>
+	
+	<select id="selectUsernoByUserid" parameterType="string" resultType="int">
+		select userno
+		FROM member
+		WHERE userid = #{loginid}
+	</select>
+	
+	<select id="selectBoardSeqNext" resultType="int">
+		SELECT seq_board.nextval FROM dual
+	</select>
+	
+	<insert id="insertCareBoard" parameterType="board.dto.Board">
+		INSERT INTO board (boardno, boardtitle, content, write_date, hit, userno, boardtypeno)
+		VALUES (#{boardNo}, #{boardTitle}, #{content}, current_date, 0, #{userNo}, 1 )
+	</insert>
+	
+	<select id="selectCareBoardFile" parameterType="int" resultType="board.dto.BoardFile">
+		SELECT * FROM boardfile
+		WHERE boardNo = #{boardNo}
+		ORDER BY fileno
+	</select>
+	
+	<select id="selectRecommendCntByBoardNoUserNo" resultType="int" parameterType="hashmap">
+		SELECT count(*) FROM boardrecommend
+		WHERE boardNo = #{boardNo} AND userNo = #{userNo}
+	</select>
+	
+	<insert id="insertRecommendToCare" parameterType="hashmap">
+		INSERT INTO boardrecommend (boardrecomno, boardno, userno)
+		VALUES ( seq_boardrecommend.nextval, #{boardNo}, #{userNo} )
+	</insert>
+	
+	<delete id="deleteRecommendToCare" parameterType="hashmap">
+		DELETE boardrecommend
+		WHERE boardNo=#{boardNo} AND userNo=#{userNo}
+	</delete>
+	
+	<select id="selectRecommendCnt" parameterType="int" resultType="int">
+		SELECT count(*) FROM boardrecommend
+		WHERE boardno=#{boardNo}
+	</select>
+	
+	<insert id="insertCommentToCareBoard" parameterType="board.dto.Comment" >
+		INSERT INTO commenttable (commentno, content, write_date, boardno, userno, depth, organization, sortno, refcommentno)
+		VALUES ( #{commentNo}, #{content}, current_date, #{boardNo}, #{userNo}, #{depth}, #{organization}, #{sortNo}, 0 )
+	</insert>
+	
+	<select id="selectCommentByBoardno" parameterType="hashmap" resultType="hashmap">
+		SELECT c.*, userid, m.userno
+			,(SELECT count(*) FROM comrecommend cr WHERE cr.commentno = c.commentno) reccnt 
+			<if test="userNo != 0">
+				, (SELECT count(*) FROM comrecommend cr WHERE cr.userno = #{userNo} AND c.commentno = cr.commentno ) AS isrec
+			</if>
+		FROM commenttable c, member m
+		WHERE boardno = #{boardno} AND m.userno = c.userno
+		ORDER BY organization DESC, sortno
+	</select>
+	
+	<select id="selectNoticeToCare" resultType="hashmap">
+		SELECT *
+		FROM(
+    		SELECT rownum rnum, n.*
+    		FROM (
+        		SELECT * FROM notice
+        		WHERE boardtypeno = 1
+        		ORDER BY noticeno DESC) n
+		)
+		WHERE rnum BETWEEN 1 AND 3
+	</select>
+	
+	<select id="selectSortNoByRef" parameterType="int" resultType="int">
+		SELECT sortNo FROM commenttable
+		WHERE commentno = #{refCommentNo}
+	</select>
+	
+	<update id="updateAfterSortnoUpper" parameterType="hashmap">
+		UPDATE commenttable set sortno = sortno + 1
+		WHERE organization = #{organization}
+		 AND sortno > (SELECT sortno FROM commenttable WHERE commentno = #{refcommentno})
+	</update>
+	
+	<select id="selectRefOrgan" parameterType="int" resultType="int">
+		SELECT organization FROM commenttable
+		WHERE commentno = #{refcommentno}
+	</select>
+	
+	<update id="deleteByUpdateBoardType" parameterType="board.dto.Board">
+		UPDATE board SET boardtypeno = 5
+		WHERE boardno = #{boardNo}
+	</update>
+	
+	<select id="getMemberByBoardMap" parameterType="hashmap" resultType="member.dto.Member">
+		SELECT userno, username, address, detailaddress, zipcode, latitude, longitude FROM member
+		WHERE userno = #{USERNO}
+	</select>
+	
+	<select id="selectCareByLogin" parameterType="util.Paging" resultType="hashmap">
+		SELECT * FROM(
+   			 SELECT rownum rnum, S.* 
+  			 FROM ( 
+        		SELECT B.boardno,
+           		boardtitle,
+            	content,
+            	write_date AS writedate,
+            	hit,
+            	B.userno,
+	            B.boardtypeno,
+	            M.userid,
+	            M.usernick,
+	            M.latitude,
+	            M.longitude,
+	            (SELECT count(*) FROM boardrecommend R WHERE B.boardno = R.boardno) AS recommend,
+	            (SELECT count(*) FROM commenttable C WHERE C.boardno = B.boardno ) AS commentno,
+	            bf.originname,
+	            bf.storedname
+        		FROM Board B, Member M, BoardFile BF
+        		WHERE boardtitle LIKE '%${paging.search}%' AND boardtypeno=1 AND B.userno = M.userno
+		        AND BF.fileno = (SELECT max(fileno) FROM boardFile BF WHERE B.boardno = BF.boardno(+))
+		        <choose>
+			        <when test="distance == 2" >
+				        AND latitude BETWEEN #{loginMember.latitude}-0.0129 AND #{loginMember.latitude}+0.0129
+				        AND longitude BETWEEN #{loginMember.longitude}-0.0159 AND #{loginMember.longitude}+0.0159
+			        </when>
+			        <when test="distance == 4" >
+				        AND latitude BETWEEN #{loginMember.latitude}-0.0258 AND #{loginMember.latitude}+0.0258
+				        AND longitude BETWEEN #{loginMember.longitude}-0.0318 AND #{loginMember.longitude}+0.0318
+			        </when>
+			        <when test="distance == 6" >
+				        AND latitude BETWEEN #{loginMember.latitude}-0.0387 AND #{loginMember.latitude}+0.0387
+				        AND longitude BETWEEN #{loginMember.longitude}-0.0477 AND #{loginMember.longitude}+0.0477
+			        </when>
+			        <when test="distance == 8" >
+				        AND latitude BETWEEN #{loginMember.latitude}-0.0516 AND #{loginMember.latitude}+0.0516
+				        AND longitude BETWEEN #{loginMember.longitude}-0.0636 AND #{loginMember.longitude}+0.0636
+			        </when>
+			        <when test="distance == 10" >
+				        AND latitude BETWEEN #{loginMember.latitude}-0.0645 AND #{loginMember.latitude}+0.0645
+				        AND longitude BETWEEN #{loginMember.longitude}-0.0795 AND #{loginMember.longitude}+0.0795
+			        </when>
+		        </choose>
+        	ORDER BY boardno DESC
+    		) S
+		)
+		WHERE rnum BETWEEN #{paging.startNo} AND #{paging.endNo}
+	</select>
+	
+	<insert id="insertCareReport">
+		INSERT INTO reportboard(BOREPORTNO, reportdetail, report_date, complete, userno, boardno)
+		VALUES(SEQ_REPORTBOARD.nextval , #{reportDetail}, current_date, 'N', #{userNo}, #{boardNo})		
+	</insert>
+	
+	<update id="updateHits" parameterType="int">
+		UPDATE board set hit = hit + 1
+		WHERE boardno = #{boardNo}
+	</update>
+	
+	<select id="selectNoticeFileFromNoticeno" parameterType="int" resultType="board.dto.NoticeFile">
+		SELECT * FROM noticefile
+		WHERE noticeno = #{noticeno}
+		ORDER BY fileno
+	</select>
+	
+	<insert id="insertCareCommentReport" parameterType="board.dto.ReportComment" >
+		INSERT INTO reportcomment (coreportno, reportdetail, report_date, complete, userno, commentno)
+		VALUES (seq_reportcomment.nextval, #{reportDetail}, current_date, 'N', #{userNo}, #{commentNo} )
+	</insert>
+	
+	<insert id="insertComRecommend" parameterType="hashmap">
+		INSERT INTO comrecommend(comrecomno, commentno, userno)
+		VALUES (seq_comrecommend.nextval, #{commentNo}, #{userNo})
+	</insert>
+	
+	<select id="selectCtnComRecommend" parameterType="int" resultType="int">
+		SELECT count(*) FROM comrecommend
+		WHERE commentno = #{commentNo}
+	</select>
+	
+	<select id="selectCNTRecommendedCom" parameterType="hashmap" resultType="int">
+		SELECT count(*) FROM comrecommend
+		WHERE commentno = #{commentNo} AND userno = #{userNo}
+	</select>
+	
+	<delete id="deleteComRecommend" parameterType="hashmap">
+		DELETE comrecommend
+		WHERE commentno = #{commentNo} AND userno = #{userNo}
+	</delete>
+	
+	<update id="updateCareBoard" parameterType="board.dto.Board">
+		UPDATE board
+		SET boardtitle = #{boardTitle}
+			, content = #{content}
+		WHERE boardno = #{boardNo}
+	</update>
+	
+	<delete id="deleteBoardFileWhenUpdate" parameterType="board.dto.BoardFile">
+		DELETE boardfile
+		WHERE fileno = #{fileno}
+	</delete>
+	
+	
+	<!-- ===============================제균=============================== -->
+	
+	
+	<select id = "selectFreeBoardCnt"  parameterType="string" resultType = "int">
+		SELECT count(*)
+		FROM board
+		WHERE boardtypeno = 2
+					 AND content LIKE '%'||#{search}||'%' 
+					 OR boardtypeno = 2 AND boardtitle LIKE '%'||#{search}||'%' 
+	</select>
+	<select id = "selectMarketBoardCnt"  parameterType="string" resultType = "int">
+		SELECT count(*)
+		FROM board
+		WHERE boardtypeno = 3 
+					AND content LIKE '%'||#{search}||'%'
+					OR boardtypeno = 3 AND boardtitle LIKE '%'||#{search}||'%'
+	</select>
+	
+	<select id = "selectMarketList" parameterType="util.Paging" resultType = "map">
+		SELECT * FROM(
+			SELECT rownum rnum,
+                    (select count(*)
+                    from boardrecommend C
+                    where C.boardno = B.boardno) AS recommend  
+                    
+                    , (select count(*)
+                    from commenttable C
+                    where C.boardno = B.boardno) AS commentCnt 
+                    
+                    , B.* FROM(
+				SELECT board.boardno, boardtitle, username, write_date AS writeDate, hit
+                        , member.userno, boardtypeno, usernick
+				FROM board, member
+				
+				WHERE board.userno = member.userno AND boardtypeno = 3 AND content like '%'||#{search}||'%' OR
+						board.userno = member.userno AND boardtypeno = 3 AND boardtitle like '%'||#{search}||'%'
+				ORDER BY boardno desc
+			)B
+		)
+		WHERE rnum BETWEEN #{startNo} AND #{endNo}
+	</select>
+	<select id = "selectFreeList" parameterType="util.Paging" resultType = "map">
+		SELECT * FROM(
+			SELECT rownum rnum,
+                    (select count(*)
+                    from boardrecommend C
+                    where C.boardno = B.boardno) AS recommend  
+                    
+                    , (select count(*)
+                    from commenttable C
+                    where C.boardno = B.boardno) AS commentCnt 
+                    
+                    , B.* FROM(
+				SELECT board.boardno, boardtitle, username, write_date AS writeDate, hit
+                        , member.userno, boardtypeno, usernick
+				FROM board, member
+				
+				WHERE board.userno = member.userno AND boardtypeno = 2 AND content like '%'||#{search}||'%' OR
+						board.userno = member.userno AND boardtypeno = 2 AND boardtitle like '%'||#{search}||'%'
+				ORDER BY boardno desc
+			)B
+		)
+		WHERE rnum BETWEEN #{startNo} AND #{endNo}
+	</select>
+	<select id = "selectNotice"  parameterType="hashmap" resultType = "map">
+		SELECT  *
+		FROM(
+		    SELECT rownum rnum, noticeno, noticetitle, noticecontent, noticewritedate, userno, boardtypeno
+		    FROM notice
+		    where boardtypeno = #{category}
+		    ORDER BY noticeno desc
+		) 
+		WHERE rnum BETWEEN #{max}-2 AND #{max }
+		ORDER BY rnum desc   
+	</select>
+	<select id = "selectNoticeCnt" parameterType="int" resultType = "int">
+		select count(*)
+  		from notice
+ 		where boardtypeno = #{category}
+	</select>
+	<select id="selectBoardNext" resultType="int">
+		select seq_board.nextval  
+		from dual
+	</select>
+	<insert id="insertBoard" parameterType="board.dto.Board">
+		insert into board(boardno, boardtitle, content, write_date, hit, userno, boardtypeno)
+		values(#{boardNo}, #{boardTitle}, #{content}, sysdate, #{hit}, #{userNo}, #{ boardTypeNo})
+	</insert>
+	<!-- 이름 겹침 -->
+	<insert id="insertBoardFile" parameterType="map">
+		insert into boardfile(fileno, originname, storedname, filesize, boardno)
+		values(seq_boardfile.nextval, #{originName}, #{storedName}, #{fileSize}, #{boardNo})
+	</insert>
+	<select id="selectBoardOne" parameterType="int" resultType="map">
+		select boardno, boardtitle, content, hit, boardtypeno, member.userno, username, userid, usernick
+																, write_date AS writeDate 
+																, (select count(*) 
+                                                                from boardrecommend R, board 
+                                                                where R.boardno = board.boardno AND board.boardno= #{boardno}) AS recommend
+		from board, member
+		where board.userno = member.userno AND boardno = #{boardno}
+	</select>
+	<select id="selectFiles" parameterType="int" resultType="board.dto.BoardFile">
+		select fileno, originname, storedname, filesize, boardno
+		from boardfile
+		where boardno = #{boardno}
+	</select> 
+	<update id="updateBoard" parameterType="int">
+		update board set boardTypeNo = 5
+		where boardno = #{boardNo}
+	</update>
+	<select id="selectReportBoard" parameterType="int"  resultType="int">
+		select count(*)
+		from reportboard
+		where boardNo = #{boardNo}
+	</select>
+	<delete id="deleteBoardFile" parameterType="int">
+		delete from boardfile
+		where boardno = #{boardno}
+	</delete>
+	<delete id="deleteBoard">
+		delete from board
+		where boardno = #{boardno}
+	</delete>
+	<select id="selectIsReport" parameterType="board.dto.ReportBoard" resultType="int">
+		select count(*)
+		from reportboard
+		where boardNo = #{boardNo} AND userNo = #{userNo}
+	</select>
+	<insert id="insertReport" parameterType="board.dto.ReportBoard">
+		insert into reportboard(BOREPORTNO, reportdetail, report_date, complete, userno, boardno)
+		values(SEQ_REPORTBOARD.nextval , #{reportDetail}, sysdate, 'N', #{userNo}, #{boardNo})
+	</insert>
+	<select id="selectIsReco" parameterType="board.dto.BoardRecommend" resultType="int">
+		select count(*)
+		from boardrecommend
+		where boardNo = #{boardNo} AND userNo = #{userNo}
+	</select>
+	<insert id="insertBoardReco" parameterType="board.dto.BoardRecommend">
+		insert into boardrecommend(boardRecomNo, boardNo, userNo)
+		values (seq_boardrecommend.nextval, #{boardNo}, #{userNo})
+	</insert>
+	<select id="checkReco" parameterType="board.dto.BoardRecommend" resultType="int">
+		select count(*)
+		from boardrecommend
+		where userNo = #{userNo} AND boardNo = #{boardNo}
+	</select>
+	<delete id="deleteReco" parameterType="board.dto.BoardRecommend" >
+		delete  from boardrecommend
+		where userNo = #{userNo} AND boardNo = #{boardNo}
+	</delete>
+	<select id="selectCntReco" parameterType="board.dto.BoardRecommend" resultType="int">
+		select count(*) from boardrecommend
+		where boardNo = #{boardNo}
+	</select>
+	<select id="selectComments" parameterType="map" resultType="map">
+		select * from(
+			select B.* 
+                ,(select count(*) 
+                    from comrecommend C
+                    where commentNo = B.commentNo) AS isrecommend
+                , (select count(*)
+                	from comrecommend C
+                	where commentNo = B.commentNo and userNo = #{userNo}) recommended    
+        	from(
+      			select DENSE_RANK() OVER(order by organization) AS cnt
+                  ,commentno, content, write_date AS writeDate, member.userNo, depth, member.username, member.usernick
+                  , organization
+                  , sortno
+                  
+      			from commenttable, member 
+      			where boardNo = #{boardNo} and member.userno = commenttable.userno
+      			order by organization, sortno
+  			)B
+  		order by cnt desc, sortno
+		)      
+<!-- 		where cnt between #{min} and #{max} -->
+	</select>
+	<select id="selectMaxCommentNo" resultType="int">
+		select seq_commenttable.nextval
+		from dual
+	</select>
+	<select id="selectCommentByCommentNo" parameterType="int" resultType="board.dto.Comment">
+		select commentNo, content, write_date AS writeDate, boardNo, userNo, depth
+		from commenttable
+		where commentNo = #{commentNo}
+	</select>
+	<select id="selectUserNameByUserNo" parameterType="int" resultType="string">
+		select userName
+		from member
+		where userno = #{userNo}
+	</select>
+	<insert id="insertComment" parameterType="board.dto.Comment">
+		insert into commenttable(commentNo, content, write_date, boardNo, userNo, depth, organization, sortNo, REFCOMMENTNO)
+		values (#{commentNo}, #{content}, sysdate, #{boardNo}, #{userNo}, #{depth}, #{organization}, #{sortNo}, 0)
+	</insert>
+	<select id="selectDepthAndSortNo" parameterType="int" resultType="map">
+		select sortNo, depth, organization
+		from commenttable
+		where commentNo = #{commentNo}
+	</select>
+	<update id="updatePlueSortNo" parameterType="map">
+		update commenttable 
+		set sortno = sortNo + 1 
+		where organization = #{ORGANIZATION} and sortno > #{SORTNO}  
+	</update>
+	<select id="selectMaxCommentCnt" resultType="Integer" parameterType="int">
+		select max(cnt)
+		from(
+		select * from(
+		        select DENSE_RANK() OVER(order by organization) AS cnt
+		                    ,commentno, content, write_date AS writeDate, member.userNo, depth, member.username
+		                    , organization
+		                    , sortno
+		        from commenttable, member
+		        where boardNo = #{boardNo} and member.userno = commenttable.userno
+		        order by organization, sortno
+		    )
+		    order by cnt desc, sortno
+		)
+	</select>
+	<update id="updateComment" parameterType="int">
+		update commenttable
+		set content = '작성자가 삭제한 댓글입니다.'
+		where commentNo = #{commentNo}
+	</update>
+	<insert id="insertCommentNo" parameterType="board.dto.ReportComment">
+		insert into reportcomment(coreportno, reportdetail, report_Date, complete, userNo, commentNo)
+		values (seq_reportcomment.nextval, #{reportDetail}, sysdate, 'N', #{userNo}, #{commentNo})
+	</insert>
+	<select id="selectHospitalNo" parameterType="int" resultType="int">
+		select hospitalNo 
+		from hospital
+		where userNo = #{userNo}
+	</select>
+	<insert id="insertHospitalFile" parameterType="map" >
+		insert into hospitalFile(fileNo, originName, storedName, fileSize, hospitalNo)
+		values(seq_hospitalFile.nextval, #{originName}, #{storedName}, #{fileSize}, #{hospitalNo})
+	</insert>
+	<select id="selectUserInfo" parameterType="int" resultType="member.dto.Member">
+		select userName, zipCode, latitude, longitude, positionNo
+		from member
+		where userNo = #{userNo}
+	</select>
+	<select id="selectIsHospitalFile" parameterType="int" resultType="int">
+		select count(*)
+		from hospitalFile
+		where hospitalNo = #{hospitalNo}
+	</select>
+	<delete id="deleteHospitalFile" parameterType="int">
+		delete 
+		from hospitalfile
+		where hospitalNo = #{hospitalNo}
+	</delete>
+	<select id="selectHospitalInfo" resultType="map">
+		select member.userNo
+				, address
+				, zipcode
+				, phone
+				, latitude
+				, longitude
+				, hospitalName
+				, mammalia
+				, reptile
+				, rodent
+				, birds
+				, open
+				, close
+		from hospital, member
+		where member.userNo = hospital.userNo
+	</select>
+	<select id="selectHospitalFileInfo" parameterType="java.util.List" resultType="map">
+		select * 
+		from hospitalFile
+		where hospitalNo IN 
+		<foreach item = "h" index = "i" collection="list" open = "(" separator = "," close = ")">
+			#{h.HOSPITALNO}
+		</foreach>
+	</select>
+	<select id="selectHospitalAllCnt" parameterType="util.HospitalPaging" resultType="int">
+		select count(*)
+		from hospital
+		where hospitalName like '%'||#{search}||'%'
+		<if test="birds.equals('y')">
+			AND birds = 'y'
+		</if>
+		<if test="rodent.equals('y')">
+			AND rodent = 'y'
+		</if>		
+		<if test="reptile.equals('y')">
+			AND reptile = 'y'
+		</if>
+		<if test="mammalia.equals('y')">
+			AND mammalia = 'y'
+		</if>
+	</select>
+	<select id="selectHospitalCnt" parameterType="util.HospitalPaging" resultType="int">
+		select count(*)
+		from member, hospital
+		where longitude BETWEEN (select longitude
+                            from member
+                            where userNo = #{userNo} ) - 0.019 * #{radius}
+                            AND
+                            (select longitude
+                             from member
+                             where userNo = #{userNo} ) + 0.019 * #{radius}
+                            AND
+                            latitude BETWEEN (select latitude
+                                                from member
+                                                where userNo = #{userNo}) - 0.022 * #{radius}
+                            AND 
+                            (select latitude
+                             from member
+                             where userNo = #{userNo}) + 0.022 * #{radius}
+                            AND
+                            member.userNo = hospital.userNo
+                            AND
+                            hospitalName like '%'||#{search}||'%'
+                            <if test="birds.equals('y')">
+								AND birds = 'y'
+							</if>
+							<if test="rodent.equals('y')">
+								AND rodent = 'y'
+							</if>		
+							<if test="reptile.equals('y')">
+								AND reptile = 'y'
+							</if>
+							<if test="mammalia.equals('y')">
+								AND mammalia = 'y'
+							</if>
+	</select>
+	<select id="selectHospitalAll" parameterType="util.HospitalPaging" resultType="map">
+		select * 
+		from (
+    		select rownum rnum, B.* from( 
+        		select hospital.hospitalNo, hospitalName, mammalia, reptile, rodent, birds
+                        , open, close, member.userNo, address, phone
+                        , originName, storedName, latitude, longitude
+        		from hospital, member, hospitalFile
+        		where hospital.userNo = member.userNo
+        		AND hospital.hospitalNo = hospitalFile.hospitalNo
+            	AND hospitalName like '%'||#{search}||'%'
+            	 <if test="birds.equals('y')">
+					AND birds = 'y'
+				</if>
+				<if test="rodent.equals('y')">
+						AND rodent = 'y'
+				</if>		
+				<if test="reptile.equals('y')">
+						AND reptile = 'y'
+				</if>
+				<if test="mammalia.equals('y')">
+					AND mammalia = 'y'
+				</if>
+				order by member.userNo
+    		)B
+		)
+		where rnum BETWEEN #{startNo} AND #{endNo}
+	</select>
+	<select id="selectHospital" parameterType="util.HospitalPaging" resultType="map">
+		
+select * from(
+	    	select rownum rnum, A.*
+	    	from(
+	        	select  hospital.hospitalNo, hospitalName, mammalia, reptile, rodent, birds, userName
+	                            , open, close, member.userNo, address, phone
+	                            , originName, storedName, latitude, longitude
+	        	from member, hospital, hospitalFile
+	        	where longitude BETWEEN (select longitude from member where userNo = 161 ) - 0.0129 * #{radius}
+	                              AND
+	                              (select longitude  from member where userNo = #{userNo} ) + 0.0129 * #{radius}
+	                              AND
+	                              latitude BETWEEN (select latitude  from member  where userNo = #{userNo}) - 0.0159 * #{radius}
+	                              AND 
+	                              (select latitude from member where userNo = #{userNo}) + 0.0159 * #{radius}
+	                                                        AND  hospital.hospitalNo = hospitalFile.hospitalNo
+	                              AND  member.userNo = hospital.userNo
+	                              AND hospitalName like '%'||#{search}||'%'
+	                        <if test="birds != null and birds.equals('y')">
+								AND birds = 'y'
+							</if>
+							<if test="rodent != null and rodent.equals('y')">
+									AND rodent = 'y'
+							</if>		
+							<if test="reptile != null and reptile.equals('y')">
+									AND reptile = 'y'
+							</if>
+							<if test="mammalia != null and mammalia.equals('y')">
+								AND mammalia = 'y'
+							</if>
+	        	order by member.userno
+	    	)A
+		)
+where rnum BETWEEN #{startNo} AND #{endNo}		
+	</select>
+	<select id="selectHospitalDetail" parameterType="int" resultType="map">
+		select M.*, H.hospitalNo, H.hospitalName, H.hospitalCode, H.mammalia, H.reptile, H.rodent, H.birds, open, close
+            , storedName, originName, longitude H_longitude, latitude H_latitude
+		from member M, hospital H, hospitalFile F            
+		where M.userNo = H.userNo
+    	AND H.hospitalNo = F.hospitalNo
+    	AND H.hospitalNo = #{hospitalNo}
+	</select>
+	<select id="selectHospitalLoc" parameterType="int" resultType="map">
+		select longitude AS H_longitude, latitude AS H_latitude
+		from member, hospital
+		where member.userno = hospital.userno and hospitalNo = #{hospitalNo}
+	</select>
+	<select id="selectUserLoc" parameterType="int" resultType="map">
+		select  longitude AS U_longitude, latitude AS U_latitude
+		from member
+		where member.userno = #{userNo}
+	</select>
+	<select id="selectHospitalInfoByHospitalNo" parameterType="int" resultType="map">
+		select  hospital.hospitalNo, hospitalName, mammalia, reptile, rodent, birds
+				, open, close, originName 
+		from hospital, hospitalFile, member
+		where hospital.hospitalNo = hospitalFile.hospitalNo  
+				and hospital.hospitalno = #{hospitalNo}
+				and hospital.userno = member.userno
+	</select>
+	<update id="updateHospitalInfo" parameterType="board.dto.Hospital">
+		update hospital
+		set hospitalName = #{hospitalName}
+            , open = #{open}
+            , close = #{close}
+            , mammalia = #{mammalia}
+            , rodent = #{rodent}
+            , birds = #{birds}
+            , reptile  = #{reptile}
+		where userno = #{userNo} 
+	</update>
+	<select id="selectIsComReco" parameterType="map" resultType="integer">
+		select count(*)
+		from comrecommend
+		where userNo = #{userNo} and commentNo = #{commentNo}
+	</select>
+	<delete id="delComReco" parameterType="map">
+		delete
+		from comrecommend
+		where userNo = #{userNo} and commentNo = #{commentNo}
+	</delete>
+	<insert id="plusComReco" parameterType="map">
+		insert into comrecommend(comrecomno, commentNo, userNo)
+		values(seq_comrecommend.nextval, #{commentNo}, #{userNo})
+	</insert>
+	<select id="selectCommentCntReco" parameterType="int" resultType="int">
+		select count(*)
+		from comrecommend
+		where commentNo = #{commentNo}
+	</select>
+	<select id="getBoardNoUserNoByUserNo" parameterType="board.dto.Board" resultType="integer">
+		select count(*)
+		from board
+		where boardNo = #{boardNo} and userNo = #{userNo} 
+	</select>
+	<update id="updateBoardWrite" parameterType="board.dto.Board">
+		update board
+		set boardtitle = #{boardTitle}
+    		, Content = #{content}
+    		, boardTypeNo = #{boardTypeNo}
+		where boardNo = #{boardNo} 
+	</update>
+</mapper>

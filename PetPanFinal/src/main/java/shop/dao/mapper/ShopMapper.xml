@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  
+<mapper namespace="shop.dao.face.ShopDao">
+
+	<select id="countShop" resultType="int" parameterType="String">
+		select count(*) from shop
+		where name like ('%${search}%')
+		and deleteobj = 1 
+	</select>
+	
+	<select id="selectAll" resultType="shop.dto.Shop" parameterType="util.ShopPaging">
+		select *
+		    from(
+		        select rownum rnum, B.*
+		        from (
+		            SELECT * FROM shop
+		            where deleteobj = 1 
+	            	and name like ('%${search}%')
+		            ORDER BY objectno DESC
+		        )B
+		    )
+		where rnum between #{startNo } AND #{endNo }
+	</select>
+	
+	<select id="selectByObjno" resultType="shop.dto.Shop" parameterType="shop.dto.Shop">
+		select * from shop
+		where objectno = #{objectno} 
+	</select>
+	
+	<select id="checkBasket" resultType="int" parameterType="shop.dto.Basket">
+		select count(*) from basket
+		where userno = #{userno} and objectno = #{objectno}
+	</select>
+	
+	<insert id="insertBasket" parameterType="shop.dto.Basket">
+		insert into basket 
+		values ( seq_basket.nextval, #{quantity}, #{userno}, #{objectno} )
+	</insert>
+	
+	<update id="updateBasket" parameterType="shop.dto.Basket">
+		update basket set quantity = #{quantity} 
+		where userno = #{userno} and objectno = #{objectno}
+	</update>
+	
+	<select id="selectBasket" parameterType="shop.dto.Basket" resultType="hashmap">
+		select a.* ,b.*
+		from basket a
+		inner join shop b
+		on a.objectno = b.objectno
+		where userno = ${userno}
+	</select>
+	
+	<select id="shopfile" resultType="shop.dto.ShopFile" parameterType="shop.dto.Basket">
+		select * from shopfile
+		where objectno = #{objectno}
+	</select>
+
+	<select id="memberShop" resultType="member.dto.Member" parameterType="shop.dto.Basket">
+		select * from member
+		where userno = #{userno}
+	</select>
+	
+	<select id="buyno" resultType="int">
+		select SEQ_ORDERUSER.nextval from dual
+	</select>
+	
+	<insert id="insertOrderUser" parameterType="shop.dto.OrderUser">
+		insert into orderuser(buyno, buyername, buyeradd, buyerzip, buyerphone, complete, userno, buydate, buydetailaddress)
+		values(#{buyno}, #{buyername}, #{buyeradd}, #{buyerzip}, #{buyerphone}, 'n', #{userno}, current_date, #{buydetailaddress})
+	</insert>
+	
+	<insert id="insertOrderThing" parameterType="shop.dto.OrderThing">
+		insert into OrderThing(buylistno, quantity, objectno, buyno)
+		values(SEQ_ORDERTHING.nextval, #{quantity}, #{objectno}, #{buyno})
+	</insert>
+	
+	<delete id="buyDeleteBasket" parameterType="shop.dto.Basket">
+		delete from basket
+		where userno = #{userno}
+	</delete>
+	
+	<select id="selectDeleteBasket" resultType="shop.dto.Basket">
+		select * from basket
+		where userno = #{userno} and objectno = #{objectno}
+	</select>
+	
+	<delete id="deleteBasket" parameterType="int">
+		delete from basket
+		where basketno = #{basketno}
+	</delete>
+	
+	<select id="reviewList" resultType="hashmap" parameterType="shop.dto.Review" >
+		SELECT * from review R
+		inner join member M
+		on R.userno = M.userno
+		where objectno = #{objectno}
+		order by reviewno desc
+	</select>
+	
+	<select id="orderList" resultType="hashmap" parameterType="shop.dto.OrderUser">
+		select a.buyno, a.buyername, a.buyeradd, a.buyerzip, a.buyerphone, a.complete, a.userno, a.buydetailaddress		
+		, b.*, c.name, c.price, to_char(a.buydate,'yyyy/MM/DD HH:MI') as buydate
+		from orderuser a , shop c, orderthing b
+		WHERE a.buyno = b.buyno
+		AND userno = #{userno}
+		AND c.objectno = b.objectno
+		ORDER BY buydate DESC
+	</select>
+	
+	<select id="selectNextval" resultType="int">
+		select seq_review.nextval from dual
+	</select>
+	
+	<insert id="writeReview" parameterType="shop.dto.Review">
+		insert into review(reviewno, reviewtitle, reviewcontent, reviewstar, image1, objectno, userno, buyno)
+		values(#{reviewno}, #{reviewtitle}, #{reviewcontent}, #{reviewstar},#{image1}, #{objectno}, #{userno}, #{buyno})
+	</insert>
+	
+	<insert id="insertShopFile" parameterType="shop.dto.ReviewFile">
+		INSERT INTO ReviewFile (fileno, originname, storedname, filesize, reviewno)
+		VALUES(SEQ_REVIEWFILE.nextval, #{originname}, #{storedname}, #{filesize}, #{reviewno} )
+	</insert>
+	
+	<select id="cntReviewno" parameterType="shop.dto.Review" resultType="int">
+		select count(*) from review
+		where objectno = #{objectno}
+	</select>
+	
+	<select id="selectReviewNo" parameterType="shop.dto.Review" resultType="int">
+		select reviewno from review
+		where objectno = #{objectno} 
+	</select>
+	
+	<select id="fileList" parameterType="int" resultType="shop.dto.ReviewFile">
+		select * from ReviewFile
+		where reviewno = #{reviewno}
+	</select>
+	
+	<update id="updateC" parameterType="shop.dto.Review" >
+		update orderuser
+		set COMPLETE = '1'
+		where buyno = #{buyno}
+	</update>
+	
+	<insert id="insertReport" parameterType="shop.dto.ReportObject">
+		insert into reportobject
+		values(seq_reportobject.nextval, #{objectno}, #{reportdetail}, current_date, 'n', #{userno})
+	</insert>
+	
+	
+</mapper>
